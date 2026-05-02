@@ -1,0 +1,99 @@
+DoE (Data Over Ethernet) Komunikacja mikrokontrolerow - (NIE)Dokumentacja w pełni poprawna
+----------------------------------
+1. RAMKA
+ENTRY SYNC - 4B
+CONTROL - 4B
+Source IP - 2B
+Gateway - 2B
+Target IP - 2B
+Payload - 112B
+Checksum - 2B
+
+Entry SYNC:
+0xDEFDEFDE albo 0x5533CCD5 nie wiem który lepszy jest po prostu
+
+Control:
+0x*___ <- mówi jaki standard
+0x_*__ <- mówi jaka flaga (ACK, NULL, DENY etc.)
+0x__*_ <- ustawienia sieciowe (RST czyli reset sieciowy IP, DHCP renew etc.)
+0x___* <- TTL ustawiony na 64 deafultowo dla każdego, odejmowany o 1 za każdy przesyl
+
+Source IP:
+NET.HOST
+192.169
+
+Gateway
+NET.IP
+192.1
+
+Target IP:
+NET.TARGET
+192.69
+
+Checksum:
+CRC16
+----------------------------------
+
+----------------------------------
+2. Konfiguracja automatyczna przez router
+ENTRY SYNC
+CONTROL : 0x01010304 czyli kat 1 | Hello | DHCP | 4
+Source IP : NET.1
+Gateway : NET.1
+Target IP : NET.0
+Payload : NET.IP (PULA)
+Checksum : CRC16
+
+3. Ramka komunikacyjna
+Entry sync
+control : 0x01010040 czyli kat 1 | send | NULL | 64
+source ip : net.host
+Gateway : net.router
+target ip : net.target
+payload: text
+checksum : crc16
+
+Entry sync
+control : 0x01030040 czyli kat 1 | ACK | NULL | 64
+source ip : net.host
+Gateway : net.router
+target ip : net.target
+payload:
+checksum : crc16
+
+4. Wyjscie na swiat
+Host musi mieć target ip ustawione jako router, wtedy cała ramka jest wysyłana na serwer w pełnym znaczeniu przystosowana na rozbicie 
+Entry sync
+control : 0x01010040 | kat 1 | send | NULL | 64
+source ip : net.host
+Gateway : net.router
+target ip : net.router
+payload: text
+checksum : crc16
+----------------------------------
+
+----------------------------------
+5. PICO-CISCO (Router)
+Glowny procesor : RPI PICO 2W
+NODE: AVR <- UART -> RS485 -> RJ45 (kabel)
+NODE alternatywa: RPI PICO <- UART -> RS485 -> 2x RJ45 (kabel)
+
+komunikacja między Glownym procesorem a Node odbywa się za pomocą I2C oraz dodatkowym sygnalem I2C_IRQ który powoduje ze na ktoryms node przedostaly się dane, dzięki czemu procesor może sprawdzić i zrobić to co powinien
+
+Docelowa prędkość DoE (Data Over Ethernet) : 1,2,4,8,16,32,64 kb/s
+Docelowa dlugosc DoE (Data Over Ethernet) : 0,25 - 25 metrow
+
+Docelowy projekt zakładał komunikację niestandardową czyli użycie pinów PIO/GPIO i sterowanie ręcznie nimi tzw "machanie" CLK DATA_OUT DATA_IN
+Ale projekt jednak przeszedł w strone gotowego rozwiązania fizycznego jakim jest RS485 czyli sygnał różnicowy. Dalej jest warstwa fizyczna pod lupą i jakie rozwiązanie jednak zastosować.
+----------------------------------
+
+----------------------------------
+6. Warstwa logiczna
+NODE: AVR <- UART -> RS485 -> RJ45 (kabel)
+miał być tylko forma tlumacza UART na I2C i z powrotem, ale wpadl pomysl aby zastosować dużo większy NODE czyli:
+RPI PICO <- UART +-> RS485 -> RJ45 (kabel)
+                 +-> RS485 -> RJ45 (kabel)
+
+czyli, o wiele potężniejszy procesor NODE'a ze sprzętowym UART i I2C, dwa rdzenie, duza ilość ramu co pozoli na dużo większe możliwości niż tłumacz, tutaj możemy już pomyslic o przenieseniu mniejszej lub większej odpowiedzialności i sprawności z procesora głownego, czyli uprawnienia w ramce w sekcji CONTROL, możemy dac w Flagach opcje Fast lub Piority czyli ważniejszy pakiet. 
+Ale stostujac RPI PICO jako NODE stawiamy po pierwsze: Na większe uzycie energii, praca 3V3 kiedy RS485 jest 5V wiec więcej konwerterów logicznych, albo zrobienie swojej warstwy fizycznej.
+----------------------------------
